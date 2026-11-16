@@ -143,3 +143,5 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
   .rankings { grid-template-columns: 1fr; gap: 0; }
   .tiles .dato .v { font-size: 16px; }
 }
+.leaflet-control-attribution { font-size: 10px !important; line-height: 1.4; }
+.leaflet-tooltip { font-size: 13px; }
