@@ -2,6 +2,9 @@ name: Actualizar precios
 
 on:
   workflow_dispatch: {}        # lo lanza cron-job.org cada 30 min
+  push:                        # y al cambiar el script
+    branches: [main]
+    paths: ['scripts/**', '.github/workflows/update.yml']
   schedule:
     - cron: '23 * * * *'       # respaldo: cada hora por si cron-job.org falla
 
