@@ -170,7 +170,7 @@ function construirMapa() {
   const [cx0, cy0] = proy(-18.3, 29.5, '35'), [cx1, cy1] = proy(-13.3, 27.55, '35');
   let h = `<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" role="img" aria-label="Mapa de España por provincias">`;
   h += `<rect class="marco" x="${(cx0 - 14).toFixed(0)}" y="${(cy0 - 14).toFixed(0)}" width="${(cx1 - cx0 + 28).toFixed(0)}" height="${(cy1 - cy0 + 28).toFixed(0)}" rx="10"/>`;
-  h += `<text class="rot" x="${(cx1 + 6).toFixed(0)}" y="${(cy0 - 2).toFixed(0)}" text-anchor="end" style="font-size:40px">Canarias</text>`;
+  h += `<text class="rot" x="${(cx0 - 2).toFixed(0)}" y="${(cy0 + 30).toFixed(0)}" style="font-size:34px">Canarias</text>`;
   for (const f of st.geo.features) {
     const c = f.properties.c;
     h += `<path class="prov sin" data-c="${c}" d="${rutaSVG(f.geometry, c)}"><title>${PROV[c]}</title></path>`;
