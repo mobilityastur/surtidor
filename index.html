@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Surtidor · precios de carburantes</title>
+<meta name="description" content="Precios de gasolina y diésel en España por provincia y gasolinera, con datos oficiales del Ministerio.">
+<meta name="theme-color" content="#0E1116" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F6F5F1" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Surtidor">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="5" width="13" height="22" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="8.5" y="9" width="6" height="5" rx="1" fill="currentColor"/><path d="M18 12h3l3 3v9a2 2 0 0 0 4 0V13l-3-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Surtidor</span>
+  </a>
+  <button id="hora" class="hora" aria-label="Actualizar">—</button>
+</header>
+
+<nav class="chips" id="chips" aria-label="Combustible"></nav>
+
+<main>
+  <!-- ESPAÑA -->
+  <section id="v-inicio" class="vista">
+    <div class="cabecera">
+      <div>
+        <div class="etq" id="ref-etq">Precio típico en España</div>
+        <div class="grande" id="ref-val">—</div>
+        <div class="etq2" id="ref-pie">&nbsp;</div>
+      </div>
+      <div class="seg" id="modo" role="group" aria-label="Qué colorear">
+        <button data-m="med" class="on">Precio típico</button>
+        <button data-m="min">Más barata</button>
+      </div>
+    </div>
+
+    <div class="mapa-es" id="mapa-es" aria-label="Mapa de provincias"></div>
+    <div class="leyenda">
+      <div class="barra" id="barra"></div>
+      <div class="leyenda-tx"><span>más barata</span><span>en la media</span><span>más cara</span></div>
+    </div>
+
+    <div class="ficha" id="ficha" hidden></div>
+
+    <a class="boton-cerca" href="#/cerca"><span class="pin" aria-hidden="true">◎</span> Gasolineras baratas cerca de mí</a>
+
+    <div class="rankings">
+      <div><h2 class="sec">Más baratas</h2><ol class="rank" id="rank-bajo"></ol></div>
+      <div><h2 class="sec">Más caras</h2><ol class="rank" id="rank-alto"></ol></div>
+    </div>
+    <p class="nota">Precio típico = mediana de las gasolineras de cada provincia. El color compara con la mediana de la península y Baleares. Canarias, Ceuta y Melilla tienen otra fiscalidad y se muestran fuera de escala.</p>
+  </section>
+
+  <!-- PROVINCIA -->
+  <section id="v-prov" class="vista">
+    <a class="volver" href="#/">‹ España</a>
+    <h1 class="titulo" id="p-nombre">—</h1>
+    <div class="tiles" id="p-tiles"></div>
+    <div class="evolucion" id="p-evol"></div>
+    <div class="mapa-det" id="p-mapa"></div>
+    <div class="filtros">
+      <h2 class="sec">Gasolineras más baratas</h2>
+      <label class="check"><input type="checkbox" id="p-abiertas"> Solo 24 h</label>
+    </div>
+    <ul class="lista" id="p-lista"></ul>
+    <button class="mas" id="p-mas" hidden>Ver más</button>
+  </section>
+
+  <!-- CERCA -->
+  <section id="v-cerca" class="vista">
+    <a class="volver" href="#/">‹ España</a>
+    <h1 class="titulo">Cerca de mí</h1>
+    <div class="seg radio" id="radio" role="group" aria-label="Distancia">
+      <button data-r="5">5 km</button><button data-r="10" class="on">10 km</button><button data-r="25">25 km</button>
+    </div>
+    <p class="estado" id="c-estado">Buscando tu ubicación…</p>
+    <div class="mapa-det" id="c-mapa"></div>
+    <ul class="lista" id="c-lista"></ul>
+  </section>
+</main>
+
+<div class="velo" id="velo" hidden></div>
+<div class="hoja" id="hoja" role="dialog" aria-modal="true" hidden></div>
+
+<footer class="pie">Datos: <a href="https://geoportalgasolineras.es/" target="_blank" rel="noopener">Geoportal de gasolineras</a> · Ministerio para la Transición Ecológica. Precios en surtidor sin descuentos.</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
