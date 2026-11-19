@@ -1,5 +1,5 @@
 // Surtidor · service worker: la app se abre sin conexión y los datos van siempre por red primero.
-const CACHE = 'surtidor-v1';
+const CACHE = 'surtidor-v2';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'data/provincias.geojson'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

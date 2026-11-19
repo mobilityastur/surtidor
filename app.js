@@ -44,7 +44,39 @@ const st = {
   vista: 'inicio',
   provActual: null, mostrar: 20,
   radio: 10, pos: null,
+  cargado: 0,
 };
+
+// ---------- favoritas (se guardan solo en este dispositivo) ----------
+// favs: [{ id, prov }] · vistos: { id: { p: {prod: precio}, t: ms } } = precios la última vez que viste tus favoritas
+const leerJSON = (k, d) => { try { return JSON.parse(leer(k, '')) || d; } catch { return d; } };
+let favs = leerJSON('surtidor.favs', []);
+let vistos = leerJSON('surtidor.vistos', {});   // se reescribe al salir de la app
+let base = vistos;                              // con lo que se comparan los precios durante esta visita
+const esFav = id => favs.some(f => f.id === id);
+function guardarFavs() { guardar('surtidor.favs', JSON.stringify(favs)); }
+function alternarFav(e) {
+  if (esFav(e.id)) {
+    favs = favs.filter(f => f.id !== e.id);
+    delete vistos[e.id];
+  } else {
+    favs.push({ id: e.id, prov: e.prov });
+    vistos[e.id] = { p: e.p, t: Date.now() };
+    base = { ...base, [e.id]: vistos[e.id] };
+  }
+  guardarFavs(); guardar('surtidor.vistos', JSON.stringify(vistos));
+}
+// Al salir de la app, los precios actuales de las favoritas pasan a ser "lo último que viste"
+async function guardarVistos() {
+  if (!favs.length || !st.resumen) return;
+  const ahora = Date.now();
+  for (const f of favs) {
+    const ests = st.provs[f.prov] ? await st.provs[f.prov].catch(() => null) : null;
+    const e = ests?.find(x => x.id === f.id);
+    if (e) vistos[f.id] = { p: e.p, t: ahora };
+  }
+  guardar('surtidor.vistos', JSON.stringify(vistos));
+}
 if (!PRODS.some(p => p[0] === st.prod)) st.prod = 'g95';
 
 // ---------- utilidades ----------
@@ -101,7 +133,7 @@ async function cargar() {
       st.geo ? st.geo : json('data/provincias.geojson'),
       json('data/historico.json').catch(() => ({ dias: {} })),
     ]);
-    st.resumen = res; st.geo = geo; st.hist = hist; st.provs = {};
+    st.resumen = res; st.geo = geo; st.hist = hist; st.provs = {}; st.cargado = Date.now();
     const m = /(\d{2})\/(\d{2})\/\d{4} (\d{2}):(\d{2})/.exec(res.fecha || '');
     $('hora').textContent = m ? `Datos de las ${m[3]}:${m[4]}` : 'Actualizado';
   } catch (e) {
@@ -112,7 +144,7 @@ async function cargar() {
   ruta();
 }
 async function provincia(c) {
-  if (!st.provs[c]) st.provs[c] = json(`data/prov/${c}.json`).then(d => d.e).catch(e => { delete st.provs[c]; throw e; });
+  if (!st.provs[c]) st.provs[c] = json(`data/prov/${c}.json`).then(d => { for (const e of d.e) e.prov = c; return d.e; }).catch(e => { delete st.provs[c]; throw e; });
   return st.provs[c];
 }
 
@@ -226,6 +258,59 @@ function pintarInicio() {
   $('rank-alto').innerHTML = orden.slice(-5).reverse().map(fila).join('');
 
   pintarFicha(out, ref);
+  pintarFavs();
+}
+
+function cuando(t) {
+  const d = new Date(t), hoy = new Date(), ayer = new Date(); ayer.setDate(hoy.getDate() - 1);
+  const hm = d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === hoy.toDateString()) return `hoy a las ${hm}`;
+  if (d.toDateString() === ayer.toDateString()) return `ayer a las ${hm}`;
+  return `el ${d.toLocaleDateString('es', { weekday: 'long', day: 'numeric' })}`;
+}
+function cambio(antes, ahora) {
+  if (antes == null) return '';
+  const d = Math.round((ahora - antes) * 1000) / 10;
+  if (Math.abs(d) < 0.05) return `<span class="cambio igual">= sin cambios</span>`;
+  return `<span class="cambio ${d < 0 ? 'baja' : 'sube'}">${d < 0 ? '↓' : '↑'} ${Math.abs(d).toFixed(1).replace('.', ',')} cts</span>`;
+}
+async function pintarFavs() {
+  const caja = $('favs');
+  if (!favs.length) { caja.hidden = true; return; }
+  caja.hidden = false;
+  const provs = [...new Set(favs.map(f => f.prov))];
+  await Promise.all(provs.map(c => provincia(c).catch(() => null)));
+  if (st.vista !== 'inicio') return;
+  const filas = [];
+  let desde = Infinity;
+  for (const f of favs) {
+    const ests = await provincia(f.prov).catch(() => null);
+    const e = ests?.find(x => x.id === f.id);
+    if (!e) {
+      filas.push({ v: Infinity, html: `<li class="est fav-perdida"><div class="info"><div class="n1">Gasolinera ${f.id}</div><div class="n2">Ya no aparece en los datos del Ministerio</div></div><button class="quitar" data-quitar="${f.id}">Quitar</button></li>` });
+      continue;
+    }
+    const v = e.p[st.prod], b = base[f.id];
+    if (b?.t) desde = Math.min(desde, b.t);
+    const ref = st.resumen.provincias[f.prov]?.[st.prod]?.med;
+    filas.push({
+      v: v ?? Infinity,
+      html: `<li class="est" data-id="${e.id}" data-prov="${f.prov}">${insignia(e.r)}
+        <div class="info"><div class="n1">${marca(e.r).nombre}</div><div class="n2">${tc(e.l)} · ${PROV[f.prov]}</div></div>
+        <div class="precio">${v != null ? `<b>${eur(v)}</b>${cambio(b?.p?.[st.prod], v)}` : `<span class="n2">Sin ${nomProd(st.prod).toLowerCase()}</span>`}</div></li>`,
+      e, ref,
+    });
+  }
+  filas.sort((x, y) => x.v - y.v);
+  $('favs-desde').textContent = desde < Infinity ? `Cambios desde tu última visita, ${cuando(desde)}` : '';
+  $('favs-lista').innerHTML = filas.map(x => x.html).join('');
+  $('favs-lista').onclick = ev => {
+    const q = ev.target.closest('[data-quitar]');
+    if (q) { favs = favs.filter(f => f.id !== q.dataset.quitar); delete vistos[q.dataset.quitar]; guardarFavs(); guardar('surtidor.vistos', JSON.stringify(vistos)); pintarFavs(); return; }
+    const li = ev.target.closest('.est[data-id]'); if (!li) return;
+    const x = filas.find(x => x.e?.id === li.dataset.id);
+    if (x) abrirHoja(x.e, x.ref);
+  };
 }
 
 async function pintarFicha(out, ref) {
@@ -274,7 +359,7 @@ function puntos(m, lista, ref, extra) {
   m.capa.clearLayers();
   const pts = [];
   // los más caros primero, para que los baratos queden encima
-  for (const e of [...lista].sort((a, b) => b.p[st.prod] - a.p[st.prod])) {
+  for (const e of [...lista].filter(e => e.la != null).sort((a, b) => b.p[st.prod] - a.p[st.prod])) {
     const v = e.p[st.prod];
     const cm = L.circleMarker([e.la, e.lo], { radius: 7, weight: 1.5, color: '#fff', fillColor: color((v - ref) * 100), fillOpacity: 1 });
     cm.bindTooltip(`${marca(e.r).nombre} · ${eur(v)} ${unidad(st.prod)}`);
@@ -290,7 +375,7 @@ function filaEst(e, i, ref, extraTxt = '') {
   const v = e.p[st.prod], d = (v - ref) * 100;
   return `<li class="est" data-id="${e.id}">
     <span class="pos">${i + 1}</span>${insignia(e.r)}
-    <div class="info"><div class="n1">${marca(e.r).nombre}</div><div class="n2">${extraTxt}${tc(e.d)} · ${tc(e.l)}</div></div>
+    <div class="info"><div class="n1">${esFav(e.id) ? '<span class="estrella" aria-label="Favorita">★</span> ' : ''}${marca(e.r).nombre}</div><div class="n2">${extraTxt}${tc(e.d)} · ${tc(e.l)}</div></div>
     <div class="precio"><b>${eur(v)}</b><span class="dif ${claseDif(d)}">${textoDif(d)}</span></div></li>`;
 }
 
@@ -367,7 +452,7 @@ async function listarCerca() {
   let todas = [];
   try { todas = (await Promise.all(cods.map(provincia))).flat(); } catch { $('c-estado').textContent = 'No se pudieron cargar las gasolineras.'; return; }
   if (st.vista !== 'cerca') return;
-  const lista = todas.filter(e => !e.res && e.p[st.prod] != null).map(e => ({ ...e, km: distKm(st.pos, [e.la, e.lo]) }))
+  const lista = todas.filter(e => !e.res && e.la != null && e.p[st.prod] != null).map(e => ({ ...e, km: distKm(st.pos, [e.la, e.lo]) }))
     .filter(e => e.km <= st.radio).sort((a, b) => a.p[st.prod] - b.p[st.prod] || a.km - b.km);
   const ref = mediana(lista.map(e => e.p[st.prod]));
   $('c-estado').textContent = lista.length
@@ -393,16 +478,37 @@ function abrirHoja(e, ref) {
     return `<li class="${act ? 'act' : ''}"><span>${n}${dif}</span><span>${eur(e.p[p])} <small>${unidad(p)}</small></span></li>`;
   }).join('');
   $('hoja').innerHTML = `<div class="asa"></div>
-    <div class="hoja-cab">${insignia(e.r)}<div><h3>${m.nombre}</h3><div class="sub">${tc(e.d)} · ${e.cp ? e.cp + ' ' : ''}${tc(e.l)}</div></div></div>
+    <div class="hoja-cab">${insignia(e.r)}<div class="hoja-tit"><h3>${m.nombre}</h3><div class="sub">${tc(e.d)} · ${e.cp ? e.cp + ' ' : ''}${tc(e.l)}</div></div>
+      <button class="btn-fav${esFav(e.id) ? ' on' : ''}" id="btn-fav" aria-pressed="${esFav(e.id)}">${esFav(e.id) ? '★ Favorita' : '☆ Favorita'}</button></div>
     <ul class="precios">${filas}</ul>
     <p class="linea">Horario: ${e.h || 'no indicado'}</p>
     ${e.km != null ? `<p class="linea">A ${e.km.toFixed(1).replace('.', ',')} km de ti</p>` : ''}
     <p class="linea">Precios en surtidor sin descuentos, tal como los comunica la gasolinera al Ministerio.</p>
-    <div class="acciones"><a class="pri" href="https://www.google.com/maps/dir/?api=1&destination=${e.la},${e.lo}" target="_blank" rel="noopener">Cómo llegar</a><button id="cerrar">Cerrar</button></div>`;
+    <div class="acciones"><a class="pri" href="https://www.google.com/maps/dir/?api=1&destination=${e.la != null ? `${e.la},${e.lo}` : encodeURIComponent(`${e.d}, ${e.cp} ${e.l}`)}" target="_blank" rel="noopener">Cómo llegar</a><button id="cerrar">Cerrar</button></div>`;
   $('hoja').hidden = false; $('velo').hidden = false;
   $('cerrar').onclick = cerrarHoja;
+  $('btn-fav').onclick = () => {
+    alternarFav(e);
+    const on = esFav(e.id), b = $('btn-fav');
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.textContent = on ? '★ Favorita' : '☆ Favorita';
+    hojaCambio = true;
+  };
 }
-function cerrarHoja() { $('hoja').hidden = true; $('velo').hidden = true; }
+let hojaCambio = false;
+function cerrarHoja() {
+  const estaba = !$('hoja').hidden;
+  $('hoja').hidden = true; $('velo').hidden = true;
+  if (estaba && hojaCambio) {
+    hojaCambio = false;
+    if (st.vista === 'inicio') pintarFavs();
+    // en las listas solo se actualiza la estrella, sin repintar el mapa
+    document.querySelectorAll('#p-lista .est[data-id], #c-lista .est[data-id]').forEach(li => {
+      const n1 = li.querySelector('.n1'), s = n1.querySelector('.estrella');
+      if (esFav(li.dataset.id) && !s) n1.insertAdjacentHTML('afterbegin', '<span class="estrella" aria-label="Favorita">★</span> ');
+      if (!esFav(li.dataset.id) && s) { s.nextSibling?.nodeType === 3 && s.nextSibling.remove(); s.remove(); }
+    });
+  }
+}
 $('velo').addEventListener('click', cerrarHoja);
 addEventListener('keydown', e => { if (e.key === 'Escape') cerrarHoja(); });
 
@@ -425,6 +531,11 @@ function ruta() {
   else pintarCerca();
 }
 addEventListener('hashchange', ruta);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') guardarVistos();
+  else if (Date.now() - st.cargado > 10 * 60 * 1000) { base = leerJSON('surtidor.vistos', {}); cargar(); }
+});
+addEventListener('pagehide', guardarVistos);
 $('hora').addEventListener('click', cargar);
 oscuro.addEventListener('change', () => { svgListo = false; ruta(); });
 

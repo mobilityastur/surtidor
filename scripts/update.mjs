@@ -100,8 +100,12 @@ async function main() {
   const porProv = {};
   for (const e of lista) {
     const prov = String(e.IDProvincia || '').padStart(2, '0');
-    const la = num(e.Latitud), lo = num(e['Longitud (WGS84)']);
-    if (!prov || prov === '00' || la == null || lo == null) continue;
+    let la = num(e.Latitud), lo = num(e['Longitud (WGS84)']);
+    if (!prov || prov === '00') continue;
+    // Algunas gasolineras llegan con coordenadas 0,0 o con latitud y longitud cambiadas
+    const enEspana = (a, b) => a != null && b != null && a >= 27.4 && a <= 44 && b >= -18.5 && b <= 4.6;
+    if (!enEspana(la, lo) && enEspana(lo, la)) [la, lo] = [lo, la];
+    if (!enEspana(la, lo)) la = lo = null;
     const p = {};
     for (const [prod, campo] of Object.entries(campos)) {
       const v = num(e[campo]);
@@ -115,8 +119,8 @@ async function main() {
       l: (e.Localidad || e.Municipio || '').trim(),
       cp: e['C.P.'] || '',
       h: (e.Horario || '').trim(),
-      la: Math.round(la * 1e5) / 1e5,
-      lo: Math.round(lo * 1e5) / 1e5,
+      la: la == null ? null : Math.round(la * 1e5) / 1e5,
+      lo: lo == null ? null : Math.round(lo * 1e5) / 1e5,
       p,
     };
     if (e['Tipo Venta'] === 'R') est.res = 1; // venta restringida a socios
@@ -127,8 +131,24 @@ async function main() {
   const resumen = { fecha, generado: new Date().toISOString(), nacional: {}, provincias: {} };
   const todasRef = Object.fromEntries(PRINCIPALES.map(p => [p, []]));
 
+  // Precios de la actualización anterior, para saber qué ha cambiado
+  let fechaAnterior = null;
+  try { fechaAnterior = JSON.parse(await readFile('data/resumen.json', 'utf8')).fecha; } catch {}
+  const cambios = {};
+
   await mkdir('data/prov', { recursive: true });
   for (const [prov, ests] of Object.entries(porProv)) {
+    let previos = {};
+    try { previos = Object.fromEntries(JSON.parse(await readFile(`data/prov/${prov}.json`, 'utf8')).e.map(e => [e.id, e.p])); } catch {}
+    for (const e of ests) {
+      const ant = previos[e.id];
+      if (!ant) continue;
+      const c = {};
+      for (const prod of new Set([...Object.keys(ant), ...Object.keys(e.p)])) {
+        if (ant[prod] !== e.p[prod]) c[prod] = [ant[prod] ?? null, e.p[prod] ?? null];
+      }
+      if (Object.keys(c).length) cambios[e.id] = { prov, c };
+    }
     ests.sort((a, b) => a.l.localeCompare(b.l, 'es') || a.id.localeCompare(b.id));
     const info = { n: ests.length };
     for (const prod of PRINCIPALES) {
@@ -145,6 +165,8 @@ async function main() {
     if (s) resumen.nacional[prod] = s;
   }
   await writeFile('data/resumen.json', JSON.stringify(resumen));
+  // Gasolineras cuyo precio ha cambiado respecto a la actualización anterior: { id: { prov, c: { prod: [antes, ahora] } } }
+  await writeFile('data/cambios.json', JSON.stringify({ fecha, anterior: fechaAnterior, n: Object.keys(cambios).length, cambios }));
 
   // Histórico diario de medianas (se sobrescribe el día en curso)
   let hist = { dias: {} };
@@ -162,7 +184,7 @@ async function main() {
   await writeFile('data/historico.json', JSON.stringify(hist));
 
   const n = Object.values(porProv).reduce((a, b) => a + b.length, 0);
-  console.log(`${fecha}: ${n} estaciones en ${Object.keys(porProv).length} provincias. Mediana 95: ${resumen.nacional.g95?.med} · diésel: ${resumen.nacional.die?.med}`);
+  console.log(`${fecha}: ${n} estaciones en ${Object.keys(porProv).length} provincias. ${Object.keys(cambios).length} con cambios. Mediana 95: ${resumen.nacional.g95?.med} · diésel: ${resumen.nacional.die?.med}`);
 }
 
 async function escribirSiCambia(ruta, txt) {

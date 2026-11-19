@@ -145,3 +145,16 @@ main { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 }
 .leaflet-control-attribution { font-size: 10px !important; line-height: 1.4; }
 .leaflet-tooltip { font-size: 13px; }
+
+.favs { margin: 2px 0 14px; }
+.favs-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.favs-cab .sec { margin: 8px 2px 8px; }
+.cambio { display: block; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cambio.baja { color: var(--barato); } .cambio.sube { color: var(--caro); } .cambio.igual { color: var(--tx3); font-weight: 500; }
+.estrella { color: #E9A23B; }
+.hoja-tit { flex: 1; min-width: 0; }
+.btn-fav { flex: none; border: 1px solid var(--bd); background: var(--s2); color: var(--tx2); border-radius: 99px; padding: 7px 12px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.btn-fav.on { background: #FAEEDA; color: #854F0B; border-color: #FAC775; }
+@media (prefers-color-scheme: dark) { .btn-fav.on { background: #412402; color: #FAC775; border-color: #854F0B; } }
+.quitar { border: 1px solid var(--bd); background: var(--s2); border-radius: 10px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+.fav-perdida { opacity: .8; }
