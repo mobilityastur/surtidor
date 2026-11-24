@@ -61,6 +61,7 @@ function alternarFav(e) {
     delete vistos[e.id];
   } else {
     favs.push({ id: e.id, prov: e.prov });
+    contarEvento('favorita-anadida', 'Gasolinera añadida a favoritas');
     vistos[e.id] = { p: e.p, t: Date.now() };
     base = { ...base, [e.id]: vistos[e.id] };
   }
@@ -171,6 +172,7 @@ function pintarChips() {
 $('chips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;
   st.prod = b.dataset.p; guardar('surtidor.prod', st.prod); st.mostrar = 20;
+  contarEvento(`combustible-${st.prod}`, `Combustible: ${nomProd(st.prod)}`);
   ruta();
 });
 
@@ -512,6 +514,25 @@ function cerrarHoja() {
 $('velo').addEventListener('click', cerrarHoja);
 addEventListener('keydown', e => { if (e.key === 'Escape') cerrarHoja(); });
 
+// ---------- estadísticas (GoatCounter, sin cookies ni datos personales) ----------
+const pendientes = [];
+let ultimaRuta = null;
+function contar(datos) {
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') return;
+  if (window.goatcounter?.count) { try { window.goatcounter.count(datos); } catch {} }
+  else pendientes.push(datos);
+}
+function contarPendientes() { while (pendientes.length) contar(pendientes.shift()); }
+window.contarPendientes = contarPendientes;
+function contarVista(v, c) {
+  const path = v === 'prov' ? `/surtidor/provincia/${c}` : v === 'cerca' ? '/surtidor/cerca' : '/surtidor/';
+  if (path === ultimaRuta) return;
+  ultimaRuta = path;
+  contar({ path, title: v === 'prov' ? `Provincia: ${PROV[c]}` : v === 'cerca' ? 'Cerca de mí' : 'España' });
+}
+const contarEvento = (path, title) => contar({ path: `surtidor-${path}`, title, event: true });
+if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) contarEvento('app-instalada', 'Abierta como app instalada');
+
 // ---------- navegación ----------
 function ruta() {
   if (!st.resumen) return;
@@ -526,6 +547,7 @@ function ruta() {
   st.vista = v;
   document.querySelectorAll('.vista').forEach(s => s.classList.toggle('activa', s.id === 'v-' + v));
   if (cambia) { scrollTo(0, 0); st.mostrar = 20; }
+  contarVista(v, c);
   if (v === 'inicio') pintarInicio();
   else if (v === 'prov') pintarProvincia(c);
   else pintarCerca();
